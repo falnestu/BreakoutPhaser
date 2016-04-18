@@ -10,11 +10,14 @@ function preload() {
 var ball;
 var paddle;
 var bricks;
+var bonus;
 
 var ballOnPaddle = true;
 
 var lives = 3;
 var score = 0;
+
+var IdSetTimeoutBonus;
 
 var scoreText;
 var livesText;
@@ -31,6 +34,12 @@ function create() {
 
     s = game.add.tileSprite(0, 0, 800, 600, 'starfield');
 
+    // Bonus group
+    bonus = game.add.group();
+    bonus.enableBody = true;
+    bonus.physicsBodyType = Phaser.Physics.ARCADE;    
+
+    // Bricks group
     bricks = game.add.group();
     bricks.enableBody = true;
     bricks.physicsBodyType = Phaser.Physics.ARCADE;
@@ -47,6 +56,9 @@ function create() {
         }
     }
 
+   
+
+    // Create paddle
     paddle = game.add.sprite(game.world.centerX, 500, 'breakout', 'paddle_big.png');
     paddle.anchor.setTo(0.5, 0.5);
 
@@ -100,10 +112,12 @@ function update () {
     }
     else
     {
+        //Collisions uniquement quand la balle ne se trouve pas sur le paddle
         game.physics.arcade.collide(ball, paddle, ballHitPaddle, null, this);
         game.physics.arcade.collide(ball, bricks, ballHitBrick, null, this);
     }
-
+    //voir les conditions pour attraper le bonus : ici tout le temps possible
+    game.physics.arcade.collide(bonus, paddle, bonusHitPaddle, null, this);
 }
 
 function releaseBall () {
@@ -111,7 +125,7 @@ function releaseBall () {
     if (ballOnPaddle)
     {
         ballOnPaddle = false;
-        ball.body.velocity.y = -300;
+        ball.body.velocity.y = -300; // init : -300
         ball.body.velocity.x = -75;
         ball.animations.play('spin');
         introText.visible = false;
@@ -151,7 +165,7 @@ function gameOver () {
 function ballHitBrick (_ball, _brick) {
 
     _brick.kill();
-
+    dropBonus(_brick);
     score += 10;
 
     scoreText.text = 'score: ' + score;
@@ -180,24 +194,47 @@ function ballHitBrick (_ball, _brick) {
 function ballHitPaddle (_ball, _paddle) {
 
     var diff = 0;
-
+    var test = 10; // init = 10
     if (_ball.x < _paddle.x)
     {
         //  Ball is on the left-hand side of the paddle
         diff = _paddle.x - _ball.x;
-        _ball.body.velocity.x = (-10 * diff);
+        _ball.body.velocity.x = (-test * diff);
     }
     else if (_ball.x > _paddle.x)
     {
         //  Ball is on the right-hand side of the paddle
         diff = _ball.x -_paddle.x;
-        _ball.body.velocity.x = (10 * diff);
+        _ball.body.velocity.x = (test * diff);
     }
     else
     {
         //  Ball is perfectly in the middle
         //  Add a little random X to stop it bouncing straight up!
-        _ball.body.velocity.x = 2 + Math.random() * 8;
+        _ball.body.velocity.x = 2 + Math.random() * multi;
     }
+}
 
+function bonusHitPaddle(_paddle, _bonus) {
+    _bonus.kill();
+    _paddle.loadTexture('breakout', 'paddle_small.png');
+    console.log(new Date().getSeconds())
+    if (IdSetTimeoutBonus != null) {
+        clearTimeout(IdSetTimeoutBonus);
+    }
+    //Comment réinitialiser le temps à la nouvelle prise de ce bonus
+    IdSetTimeoutBonus = setTimeout(function() {
+        _paddle.loadTexture('breakout', 'paddle_big.png');
+        console.log(new Date().getSeconds())
+    }, 5000);
+    console.log("Bonus attrapé");
+ 
+}
+
+function dropBonus(_brick) {
+     // Create test bonus 
+    var _bonus = bonus.create(_brick.body.position.x, _brick.body.position.y , 'breakout', 'power_up.png');
+    _bonus.anchor.set(0.5);
+    game.physics.enable(_bonus, Phaser.Physics.ARCADE);
+    _bonus.body.velocity.y = 100;
 }
