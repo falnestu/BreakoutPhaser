@@ -1,32 +1,40 @@
 /* ********************************************
         UTILITIES
 ********************************************** */
+
+// Tableau d'objets JSON contenant les différents comportements des bonus/malus
+//      id : Identifiant du bonus
+//      effect : fonction pour lancer le comportement voulu
+//      endEffect : fonction pour annuler l'effet du bonus
+//      bonusTime : temps de l'effet du bonus
 var allBonus =[
     {
         "id": 1,
         effect : function() {
             paddle.loadTexture('breakout', 'paddle_small.png');
-            console.log("Paddle Reduit");
         },
         endEffect : function () {
             paddle.loadTexture('breakout', 'paddle_big.png');
-            console.log("Paddle normal");
         },
         bonusTime : 5000
     },
     {
         "id": 2,
         effect : function() {
-            if (balls[0].speedFactor == 1) {
-                balls[0].speedFactor = 0.5;
-                balls[0].body.velocity.y *= balls[0].speedFactor;
-                balls[0].body.velocity.x *= balls[0].speedFactor; 
-            }
+            for (var i = 0; i < balls.length; i++) {
+                if (balls[i].speedFactor == 1) {
+                    balls[i].speedFactor = 0.5;
+                    balls[i].body.velocity.y *= balls[0].speedFactor;
+                    balls[i].body.velocity.x *= balls[0].speedFactor; 
+                }
+            }   
         },
         endEffect : function () {
-            balls[0].speedFactor = 1;
-            balls[0].body.velocity.y *= 2;
-            balls[0].body.velocity.x *= 2;
+            for (var i = 0; i < balls.length; i++) {
+                balls[i].speedFactor = 1;
+                balls[i].body.velocity.y *= 2;
+                balls[i].body.velocity.x *= 2;
+            }
         },
         bonusTime : 5000
     },
@@ -67,7 +75,6 @@ var allBonus =[
     var game = new Phaser.Game(800, 600, Phaser.AUTO, 'phaser-example', { preload: preload, create: create, update: update });
 
     function preload() {
-        //game.load.json('bonus','bonus.json');
         game.load.atlas('breakout', 'images/breakout.png', 'breakout.json');
         game.load.image('starfield', 'images/starfield.jpg');
 
@@ -76,7 +83,6 @@ var allBonus =[
     var leftEmitter, rightEmitter;
 
     var balls = [];
-    //var ball;
     var paddle;
     var bricks;
     var bonus;
@@ -86,14 +92,13 @@ var allBonus =[
     var lives = 3;
     var score = 0;
 
-    var idTimeout = [0,0,0,0,0,0,0,0,0,0];
-
+    var idTimeout = new Array(allBonus.length).fill(0);
 
     var scoreText;
     var livesText;
     var introText;
 
-    var s;
+    var background;
 
     function create() {
 
@@ -102,20 +107,20 @@ var allBonus =[
         //  We check bounds collisions against all walls other than the bottom one
         game.physics.arcade.checkCollision.down = false;
 
-        s = game.add.tileSprite(0, 0, 800, 600, 'starfield');
+        background = game.add.tileSprite(0, 0, 800, 600, 'starfield');
 
-        // Bonus group
+        // Bonus group avec physic ARCADE
         bonus = game.add.group();
         bonus.enableBody = true;
         bonus.physicsBodyType = Phaser.Physics.ARCADE;
 
-        // Bricks group
+        // Bricks group avec physic ARCADE
         bricks = game.add.group();
         bricks.enableBody = true;
         bricks.physicsBodyType = Phaser.Physics.ARCADE;
 
+        //Create all bricks
         var brick;
-
         for (var y = 0; y < 4; y++)
         {
             for (var x = 0; x < 15; x++)
@@ -138,6 +143,7 @@ var allBonus =[
         paddle.body.bounce.set(1);
         paddle.body.immovable = true;
 
+        //Create firstBall
         ball = createBall();
       
         scoreText = game.add.text(32, 550, 'score: 0', { font: "20px Arial", fill: "#ffffff", align: "left" });
@@ -145,6 +151,7 @@ var allBonus =[
         introText = game.add.text(game.world.centerX, 400, '- click to start -', { font: "40px Arial", fill: "#ffffff", align: "center" });
         introText.anchor.setTo(0.5, 0.5);
 
+        //Launch ball on clickDown
         game.input.onDown.add(releaseBall, this);
 
     }
@@ -199,26 +206,28 @@ var allBonus =[
     return Phaser.Rectangle.intersects(boundsA, boundsB);
 }
 
+    //Ball begins move and animation
     function releaseBall () {
-
         if (ballOnPaddle)
         {
+
             ballOnPaddle = false;
-            balls[0].body.velocity.y = -300; // init : -300
+            balls[0].body.velocity.y = -300;
             balls[0].body.velocity.x = -75;
             balls[0].animations.play('spin');
             introText.visible = false;
         }
-
     }
 
+    //Fonction quand la balle atteint le bord inférieur
+    //  Si une seule balle, on perds une vie et on remet la balle sur le paddle
+    //  Sinon on enleve juste une balle
     function ballLost (_ball) {
 
         if (balls.length > 1) {
             balls.splice(balls.indexOf(_ball),1);
         }
         else {
-                          
             lives--;
             livesText.text = 'lives: ' + lives;
 
@@ -239,15 +248,17 @@ var allBonus =[
 
     }
 
+    //Game Over : on inscrit GameOver et la balle n'est plus jouable - donc le jeu
     function gameOver () {
 
-        ball[0].body.velocity.setTo(0, 0);
+        balls[0].body.velocity.setTo(0, 0);
         
         introText.text = 'Game Over!';
         introText.visible = true;
 
     }
 
+    //Fonction pour permettre des briques solides - Une création d'objet brick est conseillé
     function brickTakeDamage(brick) {
         brick.HP -= 1;
         if (brick.HP < 1) {
@@ -255,13 +266,17 @@ var allBonus =[
         }
     }
 
+    //Collision de la balle sur une brique
     function ballHitBrick (_ball, _brick) {
         brickTakeDamage(_brick);
-        
 
-        dropBonus(_brick);
+        //Random pour savoir si on créer un bonus
+        if (Math.random() > 0.75) {
+            dropBonus(_brick);
+        }
+
+        //Augmentation du score
         score += 10;
-
         scoreText.text = 'score: ' + score;
 
         //  Are they any bricks left?
@@ -285,21 +300,20 @@ var allBonus =[
 
     }
 
+    //Balle rebondit sur le paddle
     function ballHitPaddle (_ball, _paddle) {
-
         var diff = 0;
-        var test = 10; // init = 10
         if (_ball.x < _paddle.x)
         {
             //  Ball is on the left-hand side of the paddle
             diff = _paddle.x - _ball.x;
-            _ball.body.velocity.x = (-test * diff) * _ball.speedFactor;
+            _ball.body.velocity.x = (-10 * diff) * _ball.speedFactor;
         }
         else if (_ball.x > _paddle.x)
         {
             //  Ball is on the right-hand side of the paddle
             diff = _ball.x -_paddle.x;
-            _ball.body.velocity.x = (test * diff) * _ball.speedFactor;
+            _ball.body.velocity.x = (10 * diff) * _ball.speedFactor;
         }
         else
         {
@@ -309,29 +323,29 @@ var allBonus =[
         }
     }
 
+    //Le paddle attrape le bonus
     function bonusHitPaddle(_paddle, _bonus) {
          _bonus.kill();
+         //Choix du bonus
         var r = Math.floor(Math.random()*allBonus.length) + 1;
-        //var r = Math.floor(Math.random()*2) + 3;
-        //var r = 4;
+        //recuperation de l'objet JSON correspondant
         var bonus = allBonus.filter(x => x.id == r)[0];
-        //General
+        //Action d'un bonus
         bonus.effect();
         clearTimeout(idTimeout[bonus.id]);
         idTimeout[bonus.id] = setTimeout(bonus.endEffect, bonus.bonusTime);
     }
 
+    //Chute d'un bonus selon la brick
     function dropBonus(_brick) {
-
-        if (Math.random() > 0.1) {
-            var _bonus = bonus.create(_brick.body.position.x, _brick.body.position.y , 'breakout', "brick_4_4.png");
-            _bonus.anchor.set(0.5);
-            game.physics.enable(_bonus, Phaser.Physics.ARCADE);
-     
-            _bonus.body.velocity.y = 100;
-        }
+        var _bonus = bonus.create(_brick.body.position.x, _brick.body.position.y , 'breakout', "brick_4_4.png");
+        _bonus.anchor.set(0.5);
+        game.physics.enable(_bonus, Phaser.Physics.ARCADE);
+ 
+        _bonus.body.velocity.y = 100;
     }
 
+    //Fonction pour ajouter des balles au jeu
     function createBall(position) {
         var posX = game.world.centerX;
         var posY = paddle.y - 16;
